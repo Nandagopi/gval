@@ -79,8 +79,28 @@ func (p *Parser) parse(c context.Context) (Evaluable, error) {
 }
 
 func parseString(c context.Context, p *Parser) (Evaluable, error) {
-	s, err := strconv.Unquote(p.TokenText())
+	tokenText := p.TokenText()
+	s, err := strconv.Unquote(tokenText)
 	if err != nil {
+		//If unquoting failed, check if this is a quoted string that might be intended as a regex pattern
+		if len(tokenText) >= 2 && tokenText[0] == '"' && tokenText[len(tokenText)-1] == '"' {
+			content := tokenText[1 : len(tokenText)-1]
+			
+			// Check if this contains common regex escape sequences that are invalid in Go strings
+			hasRegexEscapes := strings.ContainsAny(content, "\\") && 
+				(strings.Contains(content, "\\d") || strings.Contains(content, "\\w") || 
+				 strings.Contains(content, "\\s") || strings.Contains(content, "\\D") ||
+				 strings.Contains(content, "\\W") || strings.Contains(content, "\\S") ||
+				 strings.Contains(content, "\\b") || strings.Contains(content, "\\B") ||
+				 strings.Contains(content, "\\A") || strings.Contains(content, "\\z") ||
+				 strings.Contains(content, "\\Z") || strings.Contains(content, "\\p") ||
+				 strings.Contains(content, "\\P"))
+			
+			if hasRegexEscapes {
+				// This looks like a regex pattern - provide helpful error with exact fix
+				return nil, fmt.Errorf("could not parse string: %w. This looks like a regex pattern. Use raw strings with backticks: `%s`", err, content)
+			}
+		}
 		return nil, fmt.Errorf("could not parse string: %w", err)
 	}
 	return p.Const(s), nil
