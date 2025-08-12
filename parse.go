@@ -97,8 +97,9 @@ func parseString(c context.Context, p *Parser) (Evaluable, error) {
 				 strings.Contains(content, "\\P"))
 			
 			if hasRegexEscapes {
-				// This looks like a regex pattern - provide helpful error with exact fix
-				return nil, fmt.Errorf("could not parse string: %w. This looks like a regex pattern. Use raw strings with backticks: `%s`", err, content)
+				// For backward compatibility (like ANTLR), treat this as a raw regex pattern
+				// instead of throwing an error
+				return p.Const(content), nil
 			}
 		}
 		return nil, fmt.Errorf("could not parse string: %w", err)
