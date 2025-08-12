@@ -82,7 +82,7 @@ func parseString(c context.Context, p *Parser) (Evaluable, error) {
 	tokenText := p.TokenText()
 	s, err := strconv.Unquote(tokenText)
 	if err != nil {
-		// If unquoting failed, check if this is a quoted string that might be intended as a regex pattern
+		//If unquoting failed, check if this is a quoted string that might be intended as a regex pattern
 		if len(tokenText) >= 2 && tokenText[0] == '"' && tokenText[len(tokenText)-1] == '"' {
 			content := tokenText[1 : len(tokenText)-1]
 			
