@@ -167,8 +167,11 @@ func convertToBool(o interface{}) (bool, bool) {
 		o = v.Interface()
 	}
 
-	if o == false || o == nil || o == "false" || o == "FALSE" {
+	if o == false || o == "false" || o == "FALSE" {
 		return false, true
+	}
+	if o == nil {
+		return false, false  // nil should not be convertible to bool
 	}
 	if o == true || o == "true" || o == "TRUE" {
 		return true, true

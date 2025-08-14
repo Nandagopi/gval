@@ -300,9 +300,28 @@ var base = NewLanguage(
 
 	Constant("true", true),
 	Constant("false", false),
+	Constant("nil", nil),
 
-	InfixOperator("==", func(a, b interface{}) (interface{}, error) { return reflect.DeepEqual(a, b), nil }),
-	InfixOperator("!=", func(a, b interface{}) (interface{}, error) { return !reflect.DeepEqual(a, b), nil }),
+	InfixOperator("==", func(a, b interface{}) (interface{}, error) { 
+		// Handle nil comparisons correctly
+		if a == nil && b == nil {
+			return true, nil
+		}
+		if a == nil || b == nil {
+			return false, nil
+		}
+		return reflect.DeepEqual(a, b), nil 
+	}),
+	InfixOperator("!=", func(a, b interface{}) (interface{}, error) { 
+		// Handle nil comparisons correctly
+		if a == nil && b == nil {
+			return false, nil
+		}
+		if a == nil || b == nil {
+			return true, nil
+		}
+		return !reflect.DeepEqual(a, b), nil 
+	}),
 	parentheses,
 
 	Precedence("??", 0),
