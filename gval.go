@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strings"
 	"text/scanner"
 	"time"
 
@@ -113,9 +114,117 @@ func Ident() Language {
 }
 
 // Base contains equal (==) and not equal (!=), perentheses and general support for variables, constants and functions
-// It contains true, false, (floating point) number, string  ("" or “) and char (”) constants
+// It contains true, false, (floating point) number, string  ("" or ") and char (") constants
 func Base() Language {
 	return base
+}
+
+// cfaOperator handles custom filtering for arrays/slices
+// Parameters: [value, operator] where operator can be "equal", "startswith", "endswith", "contains", "notequal"
+func cfaOperator(a, b interface{}) (interface{}, error) {
+	// b must be []interface{} with at least 2 elements: [value, operator]
+	bSlice, ok := b.([]interface{})
+	if !ok || len(bSlice) < 2 {
+		return a, nil
+	}
+	
+	targetValue, ok := bSlice[0].(string)
+	if !ok {
+		return a, nil
+	}
+	
+	operator, ok := bSlice[1].(string)
+	if !ok {
+		return a, nil
+	}
+
+	// Handle [][]interface{} (slice of slices)
+	if sliceOfSlices, ok := a.([][]interface{}); ok {
+		if len(sliceOfSlices) == 0 {
+			return a, nil
+		}
+		
+		for i, elem := range sliceOfSlices {
+			// Check if any element in the slice matches based on operator
+			for _, val := range elem {
+				if strVal, ok := val.(string); ok {
+					if matchesCondition(strVal, targetValue, operator) {
+						// Swap with first element
+						sliceOfSlices[0], sliceOfSlices[i] = sliceOfSlices[i], sliceOfSlices[0]
+						return sliceOfSlices, nil
+					}
+				}
+			}
+		}
+		return sliceOfSlices, nil
+	}
+
+	return a, nil
+}
+
+// cfmOperator handles custom filtering for maps
+// Parameters: [value, operator, fieldname] where operator can be "equal", "startswith", "endswith", "contains", "notequal"
+func cfmOperator(a, b interface{}) (interface{}, error) {
+	// b must be []interface{} with exactly 3 elements: [value, operator, fieldname]
+	bSlice, ok := b.([]interface{})
+	if !ok || len(bSlice) < 3 {
+		return a, nil
+	}
+	
+	targetValue, ok := bSlice[0].(string)
+	if !ok {
+		return a, nil
+	}
+	
+	operator, ok := bSlice[1].(string)
+	if !ok {
+		return a, nil
+	}
+	
+	fieldName, ok := bSlice[2].(string)
+	if !ok {
+		return a, nil
+	}
+
+	// Handle []map[string]interface{} (slice of maps)
+	if sliceOfMaps, ok := a.([]map[string]interface{}); ok {
+		if len(sliceOfMaps) == 0 {
+			return a, nil
+		}
+		
+		for i, m := range sliceOfMaps {
+			if val, exists := m[fieldName]; exists {
+				if strVal, ok := val.(string); ok {
+					if matchesCondition(strVal, targetValue, operator) {
+						// Swap with first map
+						sliceOfMaps[0], sliceOfMaps[i] = sliceOfMaps[i], sliceOfMaps[0]
+						return sliceOfMaps, nil
+					}
+				}
+			}
+		}
+		return sliceOfMaps, nil
+	}
+
+	return a, nil
+}
+
+// matchesCondition checks if value matches target based on the operator
+func matchesCondition(value, target, operator string) bool {
+	switch operator {
+	case "equal", "eq", "==":
+		return value == target
+	case "notequal", "neq", "!=":
+		return value != target
+	case "startswith", "sw":
+		return strings.HasPrefix(value, target)
+	case "endswith", "ew":
+		return strings.HasSuffix(value, target)
+	case "contains", "c":
+		return strings.Contains(value, target)
+	default:
+		return value == target // default to equal
+	}
 }
 
 var full = NewLanguage(arithmetic, bitmask, text, propositionalLogic, ljson,
@@ -132,6 +241,10 @@ var full = NewLanguage(arithmetic, bitmask, text, propositionalLogic, ljson,
 		}
 		return a, nil
 	}),
+
+	// Custom filter operators
+	InfixOperator("cfa", cfaOperator),
+	InfixOperator("cfm", cfmOperator),
 
 	ternaryOperator,
 
@@ -342,6 +455,8 @@ var base = NewLanguage(
 	Precedence("co", 40),
 	Precedence("ew", 40),
 	Precedence("mw", 40),
+	Precedence("cfa", 40),
+	Precedence("cfm", 40),
 
 	Precedence("^", 60),
 	Precedence("&", 60),
