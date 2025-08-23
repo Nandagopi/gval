@@ -121,27 +121,28 @@ func Base() Language {
 
 // cfaOperator handles custom filtering for arrays/slices
 // Parameters: [value, operator] where operator can be "equal", "startswith", "endswith", "contains", "notequal"
+// Returns: true if match found and slice was modified in-place, false if no match found
 func cfaOperator(a, b interface{}) (interface{}, error) {
 	// b must be []interface{} with at least 2 elements: [value, operator]
 	bSlice, ok := b.([]interface{})
 	if !ok || len(bSlice) < 2 {
-		return a, nil
+		return false, nil
 	}
 	
 	targetValue, ok := bSlice[0].(string)
 	if !ok {
-		return a, nil
+		return false, nil
 	}
 	
 	operator, ok := bSlice[1].(string)
 	if !ok {
-		return a, nil
+		return false, nil
 	}
 
 	// Handle [][]interface{} (slice of slices)
 	if sliceOfSlices, ok := a.([][]interface{}); ok {
 		if len(sliceOfSlices) == 0 {
-			return a, nil
+			return false, nil
 		}
 		
 		for i, elem := range sliceOfSlices {
@@ -149,64 +150,105 @@ func cfaOperator(a, b interface{}) (interface{}, error) {
 			for _, val := range elem {
 				if strVal, ok := val.(string); ok {
 					if matchesCondition(strVal, targetValue, operator) {
-						// Swap with first element
+						// Swap with first element (modifies original slice in-place)
 						sliceOfSlices[0], sliceOfSlices[i] = sliceOfSlices[i], sliceOfSlices[0]
-						return sliceOfSlices, nil
+						return true, nil
 					}
 				}
 			}
 		}
-		return sliceOfSlices, nil
+		return false, nil
 	}
 
-	return a, nil
+	// Handle []interface{} (slice of individual values)
+	if slice, ok := a.([]interface{}); ok {
+		if len(slice) == 0 {
+			return false, nil
+		}
+		
+		for i, val := range slice {
+			if strVal, ok := val.(string); ok {
+				if matchesCondition(strVal, targetValue, operator) {
+					// Swap with first element (modifies original slice in-place)
+					slice[0], slice[i] = slice[i], slice[0]
+					return true, nil
+				}
+			}
+		}
+		return false, nil
+	}
+
+	return false, nil
 }
 
 // cfmOperator handles custom filtering for maps
 // Parameters: [value, operator, fieldname] where operator can be "equal", "startswith", "endswith", "contains", "notequal"
+// Returns: true if match found and slice was modified in-place, false if no match found
 func cfmOperator(a, b interface{}) (interface{}, error) {
 	// b must be []interface{} with exactly 3 elements: [value, operator, fieldname]
 	bSlice, ok := b.([]interface{})
 	if !ok || len(bSlice) < 3 {
-		return a, nil
+		return false, nil
 	}
 	
 	targetValue, ok := bSlice[0].(string)
 	if !ok {
-		return a, nil
+		return false, nil
 	}
 	
 	operator, ok := bSlice[1].(string)
 	if !ok {
-		return a, nil
+		return false, nil
 	}
 	
 	fieldName, ok := bSlice[2].(string)
 	if !ok {
-		return a, nil
+		return false, nil
 	}
 
 	// Handle []map[string]interface{} (slice of maps)
 	if sliceOfMaps, ok := a.([]map[string]interface{}); ok {
 		if len(sliceOfMaps) == 0 {
-			return a, nil
+			return false, nil
 		}
 		
 		for i, m := range sliceOfMaps {
 			if val, exists := m[fieldName]; exists {
 				if strVal, ok := val.(string); ok {
 					if matchesCondition(strVal, targetValue, operator) {
-						// Swap with first map
+						// Swap with first map (modifies original slice in-place)
 						sliceOfMaps[0], sliceOfMaps[i] = sliceOfMaps[i], sliceOfMaps[0]
-						return sliceOfMaps, nil
+						return true, nil
 					}
 				}
 			}
 		}
-		return sliceOfMaps, nil
+		return false, nil
 	}
 
-	return a, nil
+	// Handle []interface{} where each element could be a map
+	if slice, ok := a.([]interface{}); ok {
+		if len(slice) == 0 {
+			return false, nil
+		}
+		
+		for i, item := range slice {
+			if m, ok := item.(map[string]interface{}); ok {
+				if val, exists := m[fieldName]; exists {
+					if strVal, ok := val.(string); ok {
+						if matchesCondition(strVal, targetValue, operator) {
+							// Swap with first element (modifies original slice in-place)
+							slice[0], slice[i] = slice[i], slice[0]
+							return true, nil
+						}
+					}
+				}
+			}
+		}
+		return false, nil
+	}
+
+	return false, nil
 }
 
 // matchesCondition checks if value matches target based on the operator
