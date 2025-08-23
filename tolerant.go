@@ -99,6 +99,11 @@ func TolerantFull() Language {
 			}
 			return a, nil
 		}),
+		
+		// Custom filter operators
+		InfixOperator("cfa", cfaOperator),
+		InfixOperator("cfm", cfmOperator),
+		
 		ternaryOperator,
 		Function("date", func(arguments ...interface{}) (interface{}, error) {
 			if len(arguments) != 1 {
