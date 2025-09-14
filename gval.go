@@ -182,16 +182,16 @@ func cfaOperator(a, b interface{}) (interface{}, error) {
 }
 
 // cfmOperator handles custom filtering for maps
-// Parameters: [value, operator, fieldname] where operator can be "equal", "startswith", "endswith", "contains", "notequal"
+// Parameters: [fieldname, operator, value] where operator can be "equal", "startswith", "endswith", "contains", "notequal"
 // Returns: true if match found and slice was modified in-place, false if no match found
 func cfmOperator(a, b interface{}) (interface{}, error) {
-	// b must be []interface{} with exactly 3 elements: [value, operator, fieldname]
+	// b must be []interface{} with exactly 3 elements: [fieldname, operator, value]
 	bSlice, ok := b.([]interface{})
 	if !ok || len(bSlice) < 3 {
 		return false, nil
 	}
 	
-	targetValue, ok := bSlice[0].(string)
+	fieldName, ok := bSlice[0].(string)
 	if !ok {
 		return false, nil
 	}
@@ -201,7 +201,7 @@ func cfmOperator(a, b interface{}) (interface{}, error) {
 		return false, nil
 	}
 	
-	fieldName, ok := bSlice[2].(string)
+	targetValue, ok := bSlice[2].(string)
 	if !ok {
 		return false, nil
 	}
@@ -256,13 +256,13 @@ func matchesCondition(value, target, operator string) bool {
 	switch operator {
 	case "equal", "eq", "==":
 		return value == target
-	case "notequal", "neq", "!=":
+	case "notequal", "ne", "!=":
 		return value != target
 	case "startswith", "sw":
 		return strings.HasPrefix(value, target)
 	case "endswith", "ew":
 		return strings.HasSuffix(value, target)
-	case "contains", "c":
+	case "contains", "co":
 		return strings.Contains(value, target)
 	default:
 		return value == target // default to equal
