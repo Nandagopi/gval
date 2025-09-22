@@ -128,6 +128,116 @@ func TolerantFull() Language {
 // enhancedComparisons provides comparison operators that handle false values properly
 func enhancedComparisons() Language {
 	return NewLanguage(
+		// Use InfixEvalOperator to completely override the operators
+		InfixEvalOperator("==", func(a, b Evaluable) (Evaluable, error) {
+			return func(c context.Context, v interface{}) (interface{}, error) {
+				aVal, err := a(c, v)
+				if err != nil {
+					return nil, err
+				}
+				bVal, err := b(c, v)
+				if err != nil {
+					return nil, err
+				}
+				
+				// Treat missing field (represented as false) equal to nil specifically
+				if (aVal == nil && bVal == false) || (aVal == false && bVal == nil) {
+					return true, nil
+				}
+				// nil == nil is true
+				if aVal == nil && bVal == nil {
+					return true, nil
+				}
+				// false == false should be true
+				if aVal == false && bVal == false {
+					return true, nil
+				}
+				// If one side is nil or false, check if they're the exact same value
+				if aVal == nil || bVal == nil || aVal == false || bVal == false {
+					// Only equal if they are the exact same value (handled above) or false/nil combo (handled above)
+					return false, nil
+				}
+				
+				// Handle numeric comparisons (int vs float64 etc.)
+				if aFloat, aOk := convertToFloat(aVal); aOk {
+					if bFloat, bOk := convertToFloat(bVal); bOk {
+						return aFloat == bFloat, nil
+					}
+				}
+				
+				// Handle string comparisons
+				if aStr, aOk := aVal.(string); aOk {
+					if bStr, bOk := bVal.(string); bOk {
+						return aStr == bStr, nil
+					}
+				}
+				
+				// Handle boolean comparisons
+				if aBool, aOk := aVal.(bool); aOk {
+					if bBool, bOk := bVal.(bool); bOk {
+						return aBool == bBool, nil
+					}
+				}
+				
+				// Fall back to reflect.DeepEqual for complex types
+				return reflect.DeepEqual(aVal, bVal), nil
+			}, nil
+		}),
+		
+		InfixEvalOperator("!=", func(a, b Evaluable) (Evaluable, error) {
+			return func(c context.Context, v interface{}) (interface{}, error) {
+				aVal, err := a(c, v)
+				if err != nil {
+					return nil, err
+				}
+				bVal, err := b(c, v)
+				if err != nil {
+					return nil, err
+				}
+				
+				// false (missing) vs nil should be equal, so != is false
+				if (aVal == nil && bVal == false) || (aVal == false && bVal == nil) {
+					return false, nil
+				}
+				// nil != nil is false
+				if aVal == nil && bVal == nil {
+					return false, nil
+				}
+				// false != false is false
+				if aVal == false && bVal == false {
+					return false, nil
+				}
+				// If exactly one side is nil or false (missing), they are not equal
+				if (aVal == nil && bVal != nil) || (bVal == nil && aVal != nil) || (aVal == false && bVal != false) || (bVal == false && aVal != false) {
+					return true, nil
+				}
+				
+				// Handle numeric comparisons (int vs float64 etc.)
+				if aFloat, aOk := convertToFloat(aVal); aOk {
+					if bFloat, bOk := convertToFloat(bVal); bOk {
+						return aFloat != bFloat, nil
+					}
+				}
+				
+				// Handle string comparisons
+				if aStr, aOk := aVal.(string); aOk {
+					if bStr, bOk := bVal.(string); bOk {
+						return aStr != bStr, nil
+					}
+				}
+				
+				// Handle boolean comparisons
+				if aBool, aOk := aVal.(bool); aOk {
+					if bBool, bOk := bVal.(bool); bOk {
+						return aBool != bBool, nil
+					}
+				}
+				
+				// Fall back to reflect.DeepEqual for complex types
+				return !reflect.DeepEqual(aVal, bVal), nil
+			}, nil
+		}),
+		
 		// Override comparison operators to handle false (from missing fields) properly
 		InfixOperator(">", func(a, b interface{}) (interface{}, error) {
 			// If either operand is false (from missing field), comparison is false
@@ -178,30 +288,6 @@ func enhancedComparisons() Language {
 				}
 			}
 			return fmt.Sprintf("%v", a) <= fmt.Sprintf("%v", b), nil
-		}),
-		
-		InfixOperator("==", func(a, b interface{}) (interface{}, error) {
-			// false == false should be true
-			if a == false && b == false {
-				return true, nil
-			}
-			// false == anything else should be false
-			if a == false || b == false {
-				return false, nil
-			}
-			return reflect.DeepEqual(a, b), nil
-		}),
-		
-		InfixOperator("!=", func(a, b interface{}) (interface{}, error) {
-			// false != false should be false  
-			if a == false && b == false {
-				return false, nil
-			}
-			// false != anything else should be true
-			if a == false || b == false {
-				return true, nil
-			}
-			return !reflect.DeepEqual(a, b), nil
 		}),
 	)
 }
